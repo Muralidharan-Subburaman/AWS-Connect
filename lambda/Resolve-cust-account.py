@@ -116,7 +116,7 @@ def lambda_handler(event, context):
     # Step 3: Filter only primary accounts
     primary_accounts = [
         acc for acc in accounts 
-        if acc.get("relationshipIndicator") == "P"
+        if acc.get("Indicator") == "Main"
     ]
 
     # Step 4: Build result and store in session
