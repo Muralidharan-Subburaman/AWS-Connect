@@ -29,7 +29,12 @@ def validate_zip(event):
         return lex.elicit_slot_response(event, intent_name, 'ZipCode', message, lex.SSML)
         
         
-        
+def invalid_input_counter(event):
+    session_attributes = lex.get_session_attributes(event)
+    count = int(session_attributes.get("InvalidInputCount", 0))
+    count += 1
+    lex.set_session_attribute(event, "InvalidInputCount", str(count))
+    return count
         
 def no_match_counter(event):
 	session_attributes = lex.get_session_attributes(event)
