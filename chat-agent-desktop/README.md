@@ -39,6 +39,8 @@ Set these in your contact flow before transferring to queue:
 
 
 ## Architecture
+
+```
 Customer initiates chat (StartChatContact API) →
 Connect routes via contact flow →
 Contact attributes set (CustomerName, AccountNumber, Tier, ContractID) →
@@ -50,6 +52,7 @@ onMessage subscribed → real time messages render →
 Typing events handled → typing indicator shown →
 Customer disconnects → onParticipantDisconnected fires →
 Contact ends → onEnded fires → desktop resets
+```
 
 ## Key Technical Decisions
 
