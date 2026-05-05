@@ -37,4 +37,36 @@ Set these in your contact flow before transferring to queue:
 6. Allowlist your domain in Connect console → Approved Origins
 7. Open in browser — login popup appears — agent desktop loads
 
+
 ## Architecture
+Customer initiates chat (StartChatContact API) →
+Connect routes via contact flow →
+Contact attributes set (CustomerName, AccountNumber, Tier, ContractID) →
+Transfer to Queue →
+Streams API fires onIncoming → profile panel populated →
+Agent accepts → onConnected fires →
+ChatJS getMediaController() → WebSocket established →
+onMessage subscribed → real time messages render →
+Typing events handled → typing indicator shown →
+Customer disconnects → onParticipantDisconnected fires →
+Contact ends → onEnded fires → desktop resets
+
+## Key Technical Decisions
+
+**Why ChatJS loads after Streams:** ChatJS depends on the AWS SDK bundled by Streams. Loading order prevents SDK conflicts.
+
+**Why CCP container is hidden not deleted:** The CCP iframe maintains the WebSocket connection and audio handling in background. Removing it kills all contact events.
+
+**Why region is mandatory:** Chat uses Connect Participant Service regional endpoints. Wrong region causes silent chat failure.
+
+**Why textContent not innerHTML:** Prevents XSS attacks. Customer input is never interpreted as HTML.
+
+**Why chatController is global:** sendMessage() lives outside onContact scope. Global state allows access across function boundaries.
+
+## Production Patterns Demonstrated
+
+- Fail safe routing — DefaultQueue fallback on any error
+- Persistent chat — full transcript loaded on customer reconnect  
+- Screen pop — customer profile loaded on onIncoming before agent accepts
+- AHT tracking — timer starts on connect, stops on ACW
+- Defensive coding — optional chaining prevents null reference crashes
