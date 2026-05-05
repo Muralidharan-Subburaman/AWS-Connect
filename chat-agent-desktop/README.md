@@ -1,42 +1,40 @@
-# AWS Connect Contact Center Solutions
+# Amazon Connect — Chat Agent Desktop
 
-This repository contains sample implementations, reusable logic, and design patterns for building cloud contact center solutions using Amazon Connect, AWS Lambda, and Amazon Lex.
+A production-ready chat agent desktop built on Amazon Connect Streams API.
+Demonstrates real-world chat handling patterns used in financial services contact centers.
 
-## Key Areas Covered
+## What This Shows
 
-- End-to-end Amazon Connect contact flow design
-- IVR authentication and self-service journeys
-- Amazon Lex V2 bot integration
-- AWS Lambda backend integrations
-- API orchestration and error handling
-- Session attribute management
-- Call routing and queue management
-- CloudWatch logging and troubleshooting
-- CI/CD and deployment best practices
+- CCP initialisation with chat configuration
+- Chat contact event handling — incoming, connected, ACW, ended, missed
+- Real time message rendering — customer, agent, system messages
+- Typing indicator
+- Persistent chat — transcript loaded on reconnect
+- Customer profile populated from contact flow attributes
+- AHT timer
+- Enter key to send message
 
-## Features
+## Contact Attributes Expected From Connect Flow
 
-- Secure customer authentication workflows
-- OTP and multi-factor validation
-- Dynamic call routing based on business logic
-- Fallback and error handling mechanisms
-- Fraud / blacklist checks
-- Scalable serverless integrations
+Set these in your contact flow before transferring to queue:
 
-## Tech Stack
+| Attribute      | Example Value     |
+|---------------|-------------------|
+| CustomerName  | John Smith        |
+| AccountNumber | ACC-001234        |
+| Tier          | Premium           |
+| Intent        | CheckBalance      |
+| ContractID    | C042              |
+| Verified      | true              |
 
-- Amazon Connect
-- Amazon Lex V2
-- AWS Lambda
-- Python
-- GraphQL APIs
-- AWS CloudWatch
-- Jenkins
+## Setup
 
-## Purpose
+1. Download Streams: https://github.com/amazon-connect/amazon-connect-streams
+2. Build: `npm run release` → copy `connect-streams-min.js` here
+3. Download ChatJS: https://github.com/amazon-connect/amazon-connect-chatjs
+4. Copy `amazon-connect-chat.js` here
+5. Update `CONFIG.instanceUrl` and `CONFIG.region` in the HTML file
+6. Allowlist your domain in Connect console → Approved Origins
+7. Open in browser — login popup appears — agent desktop loads
 
-This repository showcases practical cloud contact center engineering use cases, production support learnings, and integration patterns for enterprise customer service platforms.
-
-## Note
-
-This repository contains sample / learning artifacts and does not include any confidential or proprietary client information.
+## Architecture
