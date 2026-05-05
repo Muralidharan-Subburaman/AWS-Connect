@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Amazon Connect — Chat Agent Desktop</title>
+
+  <script src="connect-streams-min.js"></script>
+  <script src="https://unpkg.com/amazon-connect-chatjs@latest/dist/amazon-connect-chat.js"></script>
+
+  <style>
+    /* ── Reset ─────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── CCP Panel (hidden iframe container) ───────────── */
+    #ccp-container {
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      position: absolute;
+    }
+
+    /* ── Agent Desktop Layout ───────────────────────────── */
+    #agent-desktop {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+    }
+
+    /* ── Left Sidebar — Agent Status ────────────────────── */
+    #sidebar {
+      width: 260px;
+      background: #1a2332;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 16px;
+      gap: 16px;
+    }
+
+    #sidebar h2 {
+      font-size: 14px;
+      color: #8899aa;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #agent-name {
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    #agent-status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      background: #e74c3c;
+      color: #fff;
+      width: fit-content;
+    }
+
+    #agent-status-badge.available { background: #27ae60; }
+    #agent-status-badge.acw      { background: #f39c12; }
+    #agent-status-badge.offline  { background: #e74c3c; }
+
+    .sidebar-section {
+      background: #243447;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .sidebar-section label {
+      font-size: 11px;
+      color: #8899aa;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .sidebar-section p {
+      font-size: 13px;
+      color: #fff;
+    }
+
+    #contact-id-display,
+    #channel-display,
+    #queue-display,
+    #aht-display {
+      font-size: 13px;
+      color: #00d4aa;
+      font-family: monospace;
+    }
+
+    /* ── Customer Profile Panel ─────────────────────────── */
+    #profile-panel {
+      width: 240px;
+      background: #fff;
+      border-right: 1px solid #e0e0e0;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #profile-panel h3 {
+      font-size: 14px;
+      color: #333;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    .profile-field label {
+      font-size: 11px;
+      color: #888;
+      display: block;
+    }
+
+    .profile-field p {
+      font-size: 13px;
+      color: #222;
+      font-weight: bold;
+    }
+
+    /* ── Chat Panel ─────────────────────────────────────── */
+    #chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    #chat-header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #chat-header h3 {
+      font-size: 15px;
+      color: #222;
+    }
+
+    #connection-status {
+      font-size: 12px;
+      color: #27ae60;
+    }
+
+    /* ── Transcript Area ────────────────────────────────── */
+    #transcript {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #f9fafb;
+    }
+
+    .message {
+      max-width: 70%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      position: relative;
+    }
+
+    .message .timestamp {
+      font-size: 10px;
+      color: #aaa;
+      margin-top: 4px;
+      display: block;
+    }
+
+    .message.customer {
+      background: #e8f0fe;
+      color: #222;
+      align-self: flex-start;
+      border-bottom-left-radius: 2px;
+    }
+
+    .message.agent {
+      background: #1a73e8;
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 2px;
+    }
+
+    .message.system {
+      background: #fff3cd;
+      color: #856404;
+      align-self: center;
+      font-size: 11px;
+      border-radius: 4px;
+      padding: 6px 12px;
+    }
+
+    /* ── Typing Indicator ───────────────────────────────── */
+    #typing-indicator {
+      padding: 0 20px 8px;
+      font-size: 12px;
+      color: #888;
+      min-height: 20px;
+    }
+
+    /* ── Message Input ──────────────────────────────────── */
+    #message-input-area {
+      border-top: 1px solid #e0e0e0;
+      padding: 16px 20px;
+      display: flex;
+      gap: 10px;
+      background: #fff;
+    }
+
+    #message-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      resize: none;
+      height: 44px;
+    }
+
+    #message-input:focus {
+      border-color: #1a73e8;
+    }
+
+    #send-btn {
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0 20px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    #send-btn:hover { background: #1557b0; }
+    #send-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* ── No Contact State ───────────────────────────────── */
+    #no-contact {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: #aaa;
+    }
+
+    #no-contact p {
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body onload="initStreams()">
+
+  <!-- Hidden CCP iframe container — DO NOT remove -->
+  <div id="ccp-container"></div>
+
+  <div id="agent-desktop">
+
+    <!-- ── Sidebar ── -->
+    <div id="sidebar">
+      <h2>Agent Desktop</h2>
+
+      <div>
+        <div id="agent-name">Loading...</div>
+        <div id="agent-status-badge" class="offline">Offline</div>
+      </div>
+
+      <div class="sidebar-section">
+        <label>Contact ID</label>
+        <p id="contact-id-display">—</p>
+      </div>
+
+      <div class="sidebar-section">
+        <label>Channel</label>
+        <p id="channel-display">—</p>
+      </div>
+
+      <div class="sidebar-section">
+        <label>Queue</label>
+        <p id="queue-display">—</p>
+      </div>
+
+      <div class="sidebar-section">
+        <label>Handle Time</label>
+        <p id="aht-display">00:00</p>
+      </div>
+    </div>
+
+    <!-- ── Customer Profile ── -->
+    <div id="profile-panel">
+      <h3>Customer Profile</h3>
+
+      <div class="profile-field">
+        <label>Name</label>
+        <p id="profile-name">—</p>
+      </div>
+
+      <div class="profile-field">
+        <label>Account Number</label>
+        <p id="profile-account">—</p>
+      </div>
+
+      <div class="profile-field">
+        <label>Tier</label>
+        <p id="profile-tier">—</p>
+      </div>
+
+      <div class="profile-field">
+        <label>Intent</label>
+        <p id="profile-intent">—</p>
+      </div>
+
+      <div class="profile-field">
+        <label>Contract ID</label>
+        <p id="profile-contract">—</p>
+      </div>
+
+      <div class="profile-field">
+        <label>Verified</label>
+        <p id="profile-verified">—</p>
+      </div>
+    </div>
+
+    <!-- ── Chat Panel ── -->
+    <div id="chat-panel">
+      <div id="chat-header">
+        <h3 id="chat-title">No Active Chat</h3>
+        <span id="connection-status">Waiting for contact...</span>
+      </div>
+
+      <div id="transcript">
+        <div id="no-contact">
+          <p>No active chat contact.</p>
+          <p>Set status to Available to receive chats.</p>
+        </div>
+      </div>
+
+      <div id="typing-indicator"></div>
+
+      <div id="message-input-area">
+        <textarea
+          id="message-input"
+          placeholder="Type a message..."
+          disabled
+        ></textarea>
+        <button id="send-btn" disabled onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── Configuration ──────────────────────────────────────────────────────
+    const CONFIG = {
+      instanceUrl: 'https://YOUR-INSTANCE.awsapps.com/connect/ccp-v2/',
+      region: 'us-east-1',   // REQUIRED for chat
+      logLevel: 'INFO'
+    };
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let chatController = null;
+    let ahtInterval    = null;
+    let ahtSeconds     = 0;
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    function initStreams() {
+      const container = document.getElementById('ccp-container');
+
+      connect.core.initCCP(container, {
+        ccpUrl:             CONFIG.instanceUrl,
+        loginPopup:         true,
+        loginPopupAutoClose: true,
+        loginOptions: {
+          autoClose: true,
+          height: 600,
+          width: 400
+        },
+        region: CONFIG.region,     // REQUIRED for chat
+        softphone: {
+          allowFramedSoftphone: true,
+          disableRingtone: false,
+          allowEarlyGum: true
+        },
+        pageOptions: {
+          enableAudioDeviceSettings: false,
+          enablePhoneTypeSettings: true
+        },
+        shouldAddNamespaceToLogs: false,
+        ccpLoadTimeout: 10000
+      });
+
+      // Subscribe to agent events
+      connect.agent(onAgent);
+
+      // Subscribe to contact events
+      connect.contact(onContact);
+    }
+
+    // ── Agent Events ───────────────────────────────────────────────────────
+    function onAgent(agent) {
+      const name = agent.getName();
+      document.getElementById('agent-name').textContent = name;
+
+      agent.onStateChange(function(change) {
+        updateAgentStatus(change.newState);
+      });
+
+      // Set initial state
+      updateAgentStatus(agent.getState().name);
+    }
+
+    function updateAgentStatus(stateName) {
+      const badge = document.getElementById('agent-status-badge');
+      badge.textContent = stateName;
+      badge.className   = 'agent-status-badge';
+
+      if (stateName === 'Available') {
+        badge.classList.add('available');
+      } else if (stateName === 'AfterContactWork') {
+        badge.classList.add('acw');
+      } else {
+        badge.classList.add('offline');
+      }
+    }
+
+    // ── Contact Events ─────────────────────────────────────────────────────
+    function onContact(contact) {
+      const contactId = contact.getContactId();
+      const channel   = contact.getChannel();
+
+      // Only handle chat contacts
+      if (channel !== connect.ChannelType.CHAT) {
+        appendSystemMessage('Voice contact received — handled by CCP.');
+        return;
+      }
+
+      // ── Contact incoming ──────────────────────────
+      contact.onIncoming(function() {
+        // Load customer attributes from contact flow
+        const attrs = contact.getAttributes();
+        loadCustomerProfile(attrs);
+
+        // Update sidebar
+        document.getElementById('contact-id-display').textContent =
+          contactId.substring(0, 8) + '...';
+        document.getElementById('channel-display').textContent = 'CHAT';
+        document.getElementById('queue-display').textContent =
+          contact.getQueue()?.name || '—';
+
+        appendSystemMessage('New chat contact incoming...');
+      });
+
+      // ── Contact connected ─────────────────────────
+      contact.onConnected(function() {
+        document.getElementById('chat-title').textContent =
+          'Live Chat — ' + (document.getElementById('profile-name').textContent || 'Customer');
+        document.getElementById('connection-status').textContent = '● Connected';
+        document.getElementById('connection-status').style.color = '#27ae60';
+
+        // Enable message input
+        document.getElementById('message-input').disabled = false;
+        document.getElementById('send-btn').disabled      = false;
+        document.getElementById('no-contact').style.display = 'none';
+
+        // Start AHT timer
+        startAHTTimer();
+
+        // Get chat media controller for message handling
+        contact.getAgentConnection()
+          .getMediaController()
+          .then(function(controller) {
+            chatController = controller;
+            setupChatController(controller);
+          })
+          .catch(function(err) {
+            console.error('Failed to get chat controller:', err);
+            appendSystemMessage('Chat connection error. Please refresh.');
+          });
+
+        appendSystemMessage('Chat connected. Customer is live.');
+      });
+
+      // ── Contact ACW ───────────────────────────────
+      contact.onACW(function() {
+        appendSystemMessage('Contact ended. Complete wrap-up notes.');
+        document.getElementById('connection-status').textContent = 'After Contact Work';
+        document.getElementById('connection-status').style.color = '#f39c12';
+        document.getElementById('message-input').disabled = true;
+        document.getElementById('send-btn').disabled      = true;
+        stopAHTTimer();
+      });
+
+      // ── Contact ended ─────────────────────────────
+      contact.onEnded(function() {
+        appendSystemMessage('Contact closed.');
+        document.getElementById('connection-status').textContent = 'Waiting for contact...';
+        document.getElementById('connection-status').style.color = '#888';
+        document.getElementById('chat-title').textContent = 'No Active Chat';
+        chatController = null;
+        resetSidebar();
+      });
+
+      // ── Contact missed ────────────────────────────
+      contact.onMissed(function() {
+        appendSystemMessage('Contact missed. Check routing profile concurrency.');
+        console.warn('Missed contact:', contactId);
+      });
+    }
+
+    // ── Chat Controller ────────────────────────────────────────────────────
+    function setupChatController(controller) {
+      // Load existing transcript (persistent chat)
+      controller.getTranscript({
+        scanDirection: 'BACKWARD',
+        sortOrder: 'ASCENDING',
+        maxResults: 100
+      }).then(function(result) {
+        const transcript = result.data?.Transcript || [];
+        if (transcript.length > 0) {
+          clearTranscript();
+          transcript.forEach(function(msg) {
+            renderMessage(
+              msg.Content,
+              msg.ParticipantRole,
+              msg.AbsoluteTime
+            );
+          });
+        }
+      }).catch(function(err) {
+        console.error('Transcript load error:', err);
+      });
+
+      // Subscribe to incoming messages
+      controller.onMessage(function(event) {
+        const data = event.data;
+        renderMessage(
+          data.Content,
+          data.ParticipantRole,
+          data.AbsoluteTime
+        );
+      });
+
+      // Subscribe to typing events
+      controller.onTyping(function(event) {
+        const role = event.data?.ParticipantRole;
+        if (role === 'CUSTOMER') {
+          document.getElementById('typing-indicator').textContent =
+            'Customer is typing...';
+          // Clear after 3 seconds
+          setTimeout(function() {
+            document.getElementById('typing-indicator').textContent = '';
+          }, 3000);
+        }
+      });
+
+      // Subscribe to participant disconnect
+      controller.onParticipantDisconnected(function(event) {
+        appendSystemMessage('Customer has left the chat.');
+        document.getElementById('message-input').disabled = true;
+        document.getElementById('send-btn').disabled      = true;
+      });
+    }
+
+    // ── Send Message ───────────────────────────────────────────────────────
+    function sendMessage() {
+      const input   = document.getElementById('message-input');
+      const message = input.value.trim();
+
+      if (!message || !chatController) return;
+
+      chatController.sendMessage({
+        message:     message,
+        contentType: 'text/plain'
+      }).then(function() {
+        input.value = '';
+      }).catch(function(err) {
+        console.error('Send message error:', err);
+        appendSystemMessage('Failed to send message. Try again.');
+      });
+    }
+
+    // Allow Enter key to send (Shift+Enter for new line)
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('message-input')
+        .addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+          }
+        });
+    });
+
+    // ── Render Message ─────────────────────────────────────────────────────
+    function renderMessage(content, role, timestamp) {
+      const transcript = document.getElementById('transcript');
+      const noContact  = document.getElementById('no-contact');
+      if (noContact) noContact.style.display = 'none';
+
+      const div  = document.createElement('div');
+      const time = document.createElement('span');
+
+      div.classList.add('message');
+      time.classList.add('timestamp');
+
+      if (role === 'CUSTOMER') {
+        div.classList.add('customer');
+      } else if (role === 'AGENT') {
+        div.classList.add('agent');
+      } else {
+        div.classList.add('system');
+      }
+
+      div.textContent  = content;
+      time.textContent = timestamp
+        ? new Date(timestamp).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
+      div.appendChild(time);
+      transcript.appendChild(div);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    function appendSystemMessage(text) {
+      renderMessage(text, 'SYSTEM', null);
+    }
+
+    function clearTranscript() {
+      const transcript = document.getElementById('transcript');
+      transcript.innerHTML = '';
+    }
+
+    // ── Customer Profile ───────────────────────────────────────────────────
+    // Reads contact attributes set in Connect contact flow
+    function loadCustomerProfile(attrs) {
+      function getAttr(key) {
+        return attrs[key]?.value || '—';
+      }
+
+      document.getElementById('profile-name').textContent     = getAttr('CustomerName');
+      document.getElementById('profile-account').textContent  = getAttr('AccountNumber');
+      document.getElementById('profile-tier').textContent     = getAttr('Tier');
+      document.getElementById('profile-intent').textContent   = getAttr('Intent');
+      document.getElementById('profile-contract').textContent = getAttr('ContractID');
+      document.getElementById('profile-verified').textContent = getAttr('Verified');
+    }
+
+    // ── AHT Timer ──────────────────────────────────────────────────────────
+    function startAHTTimer() {
+      ahtSeconds  = 0;
+      ahtInterval = setInterval(function() {
+        ahtSeconds++;
+        const mm = String(Math.floor(ahtSeconds / 60)).padStart(2, '0');
+        const ss = String(ahtSeconds % 60).padStart(2, '0');
+        document.getElementById('aht-display').textContent = `${mm}:${ss}`;
+      }, 1000);
+    }
+
+    function stopAHTTimer() {
+      clearInterval(ahtInterval);
+    }
+
+    // ── Reset ──────────────────────────────────────────────────────────────
+    function resetSidebar() {
+      document.getElementById('contact-id-display').textContent = '—';
+      document.getElementById('channel-display').textContent    = '—';
+      document.getElementById('queue-display').textContent      = '—';
+      document.getElementById('aht-display').textContent        = '00:00';
+      document.getElementById('profile-name').textContent       = '—';
+      document.getElementById('profile-account').textContent    = '—';
+      document.getElementById('profile-tier').textContent       = '—';
+      document.getElementById('profile-intent').textContent     = '—';
+      document.getElementById('profile-contract').textContent   = '—';
+      document.getElementById('profile-verified').textContent   = '—';
+    }
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+# Amazon Connect — Chat Agent Desktop
+
+A production-ready chat agent desktop built on Amazon Connect Streams API.
+Demonstrates real-world chat handling patterns used in financial services contact centers.
+
+## What This Shows
+
+- CCP initialisation with chat configuration
+- Chat contact event handling — incoming, connected, ACW, ended, missed
+- Real time message rendering — customer, agent, system messages
+- Typing indicator
+- Persistent chat — transcript loaded on reconnect
+- Customer profile populated from contact flow attributes
+- AHT timer
+- Enter key to send message
+
+## Contact Attributes Expected From Connect Flow
+
+Set these in your contact flow before transferring to queue:
+
+| Attribute      | Example Value     |
+|---------------|-------------------|
+| CustomerName  | John Smith        |
+| AccountNumber | ACC-001234        |
+| Tier          | Premium           |
+| Intent        | CheckBalance      |
+| ContractID    | C042              |
+| Verified      | true              |
+
+## Setup
+
+1. Download Streams: https://github.com/amazon-connect/amazon-connect-streams
+2. Build: `npm run release` → copy `connect-streams-min.js` here
+3. Download ChatJS: https://github.com/amazon-connect/amazon-connect-chatjs
+4. Copy `amazon-connect-chat.js` here
+5. Update `CONFIG.instanceUrl` and `CONFIG.region` in the HTML file
+6. Allowlist your domain in Connect console → Approved Origins
+7. Open in browser — login popup appears — agent desktop loads
+
+## Architecture
